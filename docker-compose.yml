@@ -44,7 +44,25 @@ services:
     volumes:
       - uploads:/app/uploads
 
+  # ── Development only ─────────────────────────────────────────────────────────
+  authors-dev:
+    profiles: ["dev"]
+    build:
+      context: ./authors
+      dockerfile: Dockerfile.dev
+    container_name: loremaster-authors-dev
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./authors:/app
+      - /app/node_modules   # anonymous volume prevents host node_modules override
+
+  # ── Production only ──────────────────────────────────────────────────────────
   authors:
+    profiles: ["prod"]
     build:
       context: ./authors
       dockerfile: Dockerfile
