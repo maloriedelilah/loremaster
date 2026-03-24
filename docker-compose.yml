@@ -1,0 +1,60 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: loremaster-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-loremaster}
+      POSTGRES_USER: ${POSTGRES_USER:-loremaster}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-loremaster}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: loremaster-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-loremaster}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-loremaster}
+      SECRET_KEY: ${SECRET_KEY}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD}
+      CHUNKINATOR_BASE_URL: ${CHUNKINATOR_BASE_URL}
+      CHUNKINATOR_SERVICE_KEY: ${CHUNKINATOR_SERVICE_KEY}
+      LOREINATOR_BASE_URL: ${LOREINATOR_BASE_URL}
+      LOREINATOR_API_KEY: ${LOREINATOR_API_KEY}
+      ANYTHINGLLM_BASE_URL: ${ANYTHINGLLM_BASE_URL}
+      ANYTHINGLLM_API_KEY: ${ANYTHINGLLM_API_KEY}
+      DEBUG: ${DEBUG:-false}
+    ports:
+      - "8100:8100"
+    volumes:
+      - uploads:/app/uploads
+
+  authors:
+    build:
+      context: ./authors
+      dockerfile: Dockerfile
+    container_name: loremaster-authors
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  uploads:

@@ -1,0 +1,16 @@
+loremaster.aeon14.com {
+    tls {
+        dns cloudflare {env.CF_API_TOKEN}
+    }
+
+    # API routes
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy localhost:8100
+    }
+
+    # Everything else goes to the React frontend
+    handle {
+        reverse_proxy localhost:3000
+    }
+}
