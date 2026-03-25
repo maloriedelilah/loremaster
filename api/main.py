@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db, AsyncSessionLocal
 from app.config import settings
 from app.services.auth import ensure_superadmin
-from app.routers import auth
+from app.routers import auth, tenants, users
 
 
 @asynccontextmanager
@@ -19,7 +19,6 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("Database initialized.")
 
-    # Bootstrap superadmin
     async with AsyncSessionLocal() as db:
         await ensure_superadmin(db)
 
@@ -34,12 +33,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow the authors React app
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",   # Production nginx
+        "http://localhost:5173",
+        "http://localhost:3000",
         "https://loremaster.aeon14.com",
     ],
     allow_credentials=True,
@@ -53,8 +51,9 @@ async def health():
     return {"status": "ok", "service": "loremaster"}
 
 
-# Register routers
 app.include_router(auth.router)
+app.include_router(tenants.router)
+app.include_router(users.router)
 
 
 if __name__ == "__main__":
