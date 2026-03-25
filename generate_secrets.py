@@ -15,8 +15,7 @@ def generate_secret(length: int = 64) -> str:
 
 
 def generate_password(length: int = 32) -> str:
-    """Generate a strong random password using OS-level entropy."""
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    alphabet = string.ascii_letters + string.digits  # no special chars
     rng = random.SystemRandom()
     return "".join(rng.choice(alphabet) for _ in range(length))
 
