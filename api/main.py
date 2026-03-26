@@ -6,22 +6,33 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import init_db, AsyncSessionLocal
+from app.database import AsyncSessionLocal
 from app.config import settings
 from app.services.auth import ensure_superadmin
-from app.routers import auth, tenants, users
+from app.routers import auth, tenants, users, universes
+
+
+def run_migrations():
+    """Run alembic migrations on startup."""
+    from alembic.config import Config
+    from alembic import command
+    import os
+
+    alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "alembic.ini"))
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url",
+        settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    )
+    command.upgrade(alembic_cfg, "head")
+    print("Database migrations complete.")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown."""
     print("Loremaster API starting up...")
-    await init_db()
-    print("Database initialized.")
-
+    run_migrations()
     async with AsyncSessionLocal() as db:
         await ensure_superadmin(db)
-
     yield
     print("Loremaster API shutting down...")
 
@@ -54,6 +65,7 @@ async def health():
 app.include_router(auth.router)
 app.include_router(tenants.router)
 app.include_router(users.router)
+app.include_router(universes.router)
 
 
 if __name__ == "__main__":

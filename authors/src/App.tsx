@@ -3,10 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './layouts/AdminLayout'
+import AuthorLayout from './layouts/AuthorLayout'
 import Login from './pages/Login'
 import Tenants from './pages/admin/Tenants'
 import Users from './pages/admin/Users'
-import AuthorDashboard from './pages/AuthorDashboard'
+import Universes from './pages/author/Universes'
 
 const queryClient = new QueryClient()
 
@@ -18,6 +19,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
 
+            {/* Superadmin */}
             <Route
               path="/admin"
               element={
@@ -31,14 +33,18 @@ export default function App() {
               <Route path="users" element={<Users />} />
             </Route>
 
+            {/* Author */}
             <Route
-              path="/dashboard/*"
+              path="/dashboard"
               element={
                 <ProtectedRoute requiredRole="author">
-                  <AuthorDashboard />
+                  <AuthorLayout />
                 </ProtectedRoute>
               }
-            />
+            >
+              <Route index element={<Navigate to="/dashboard/universes" replace />} />
+              <Route path="universes" element={<Universes />} />
+            </Route>
 
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
