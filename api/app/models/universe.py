@@ -9,6 +9,7 @@ from ..database import Base
 
 class Tenant(Base):
     __tablename__ = "tenants"
+    __table_args__ = {"extend_existing": True}
 
     id          = Column(String, primary_key=True)
     name        = Column(String, nullable=False)
@@ -18,6 +19,7 @@ class Tenant(Base):
 
 class Universe(Base):
     __tablename__ = "universes"
+    __table_args__ = {"extend_existing": True}
 
     id                = Column(String, primary_key=True)
     tenant_id         = Column(String, nullable=False, index=True)
@@ -32,6 +34,7 @@ class Universe(Base):
 
 class Workspace(Base):
     __tablename__ = "workspaces"
+    __table_args__ = {"extend_existing": True}
 
     id               = Column(String, primary_key=True)
     universe_id      = Column(String, nullable=False, index=True)

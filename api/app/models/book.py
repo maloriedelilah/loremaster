@@ -24,41 +24,39 @@ class BookStatus(str, enum.Enum):
 
 class Book(Base):
     __tablename__ = "books"
+    __table_args__ = {"extend_existing": True}
 
     id              = Column(String, primary_key=True)
     tenant_id       = Column(String, nullable=False, index=True)
     universe_id     = Column(String, nullable=False, index=True)
     workspace_id    = Column(String, nullable=False, index=True)
 
-    # Manifest fields
-    title           = Column(String, nullable=False)
-    series          = Column(String, nullable=False)
-    series_order    = Column(String, nullable=True)
-    format          = Column(String, nullable=True)
-    era             = Column(String, nullable=False)
-    uses_parts      = Column(Boolean, default=False)
-    pov_markers     = Column(Boolean, default=False)
-    has_drop_caps   = Column(Boolean, default=False)
-    is_extended_content = Column(Boolean, default=False)
-    date_identifier = Column(String, nullable=True)
-    source_books    = Column(Text, nullable=True)
-    chapter_header_styles = Column(Text, nullable=True)
-    skip_headings_extra   = Column(Text, nullable=True)
-    recap_headings_extra  = Column(Text, nullable=True)
+    title                   = Column(String, nullable=False)
+    series                  = Column(String, nullable=False)
+    series_order            = Column(String, nullable=True)
+    format                  = Column(String, nullable=True)
+    era                     = Column(String, nullable=False)
+    uses_parts              = Column(Boolean, default=False)
+    pov_markers             = Column(Boolean, default=False)
+    has_drop_caps           = Column(Boolean, default=False)
+    is_extended_content     = Column(Boolean, default=False)
+    date_identifier         = Column(String, nullable=True)
+    source_books            = Column(Text, nullable=True)
+    chapter_header_styles   = Column(Text, nullable=True)
+    skip_headings_extra     = Column(Text, nullable=True)
+    recap_headings_extra    = Column(Text, nullable=True)
     appendix_headings_extra = Column(Text, nullable=True)
 
-    # File tracking
     filename        = Column(String, nullable=True)
     file_stored_at  = Column(DateTime(timezone=True), nullable=True)
     file_pushed_at  = Column(DateTime(timezone=True), nullable=True)
 
-    # Pipeline status — stored as plain string, validated via BookStatus enum in app logic
-    status          = Column(String, nullable=False, default=BookStatus.PENDING)
-    dry_run_result  = Column(Text, nullable=True)
-    chunk_count     = Column(Integer, nullable=True)
-    chunks_embedded = Column(Integer, nullable=True)
-    error_message   = Column(Text, nullable=True)
-    chunkinator_job_id = Column(String, nullable=True)
+    status              = Column(String, nullable=False, default=BookStatus.PENDING)
+    dry_run_result      = Column(Text, nullable=True)
+    chunk_count         = Column(Integer, nullable=True)
+    chunks_embedded     = Column(Integer, nullable=True)
+    error_message       = Column(Text, nullable=True)
+    chunkinator_job_id  = Column(String, nullable=True)
 
-    created_at      = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())

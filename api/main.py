@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import AsyncSessionLocal
 from app.config import settings
 from app.services.auth import ensure_superadmin
-from app.routers import auth, tenants, users, universes
+from app.routers import auth, tenants, users, universes, books
 
 
 def run_migrations():
@@ -66,6 +66,7 @@ app.include_router(auth.router)
 app.include_router(tenants.router)
 app.include_router(users.router)
 app.include_router(universes.router)
+app.include_router(books.router)
 
 
 if __name__ == "__main__":

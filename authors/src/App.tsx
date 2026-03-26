@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Tenants from './pages/admin/Tenants'
 import Users from './pages/admin/Users'
 import Universes from './pages/author/Universes'
+import Books from './pages/author/Books'
 
 const queryClient = new QueryClient()
 
@@ -44,6 +45,10 @@ export default function App() {
             >
               <Route index element={<Navigate to="/dashboard/universes" replace />} />
               <Route path="universes" element={<Universes />} />
+              <Route
+                path="universes/:universeId/workspaces/:workspaceId/books"
+                element={<Books />}
+              />
             </Route>
 
             <Route path="/" element={<Navigate to="/login" replace />} />

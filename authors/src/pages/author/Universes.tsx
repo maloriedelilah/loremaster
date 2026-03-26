@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, ChevronRight, Pencil, Trash2, Globe, AlertTriangle } from 'lucide-react'
 import api from '../../lib/api'
@@ -134,12 +135,12 @@ function UniverseModal({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              Default System Prompt <span className="text-gray-500">(optional — applied to all workspaces)</span>
+              Default System Prompt <span className="text-gray-500">(optional)</span>
             </label>
             <textarea
               value={form.default_prompt}
               onChange={(e) => setForm({ ...form, default_prompt: e.target.value })}
-              placeholder="You are a lore assistant for this universe. Answer questions accurately using only the provided context..."
+              placeholder="You are a lore assistant for this universe..."
               rows={5}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none text-sm font-mono"
             />
@@ -198,10 +199,6 @@ function WorkspaceModal({
     onError: (err: any) => setError(err.response?.data?.detail ?? 'Something went wrong'),
   })
 
-  const handleNameChange = (name: string) => {
-    setForm({ ...form, name })
-  }
-
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg p-6">
@@ -216,7 +213,7 @@ function WorkspaceModal({
             <label className="block text-sm font-medium text-gray-300 mb-1">Name</label>
             <input
               value={form.name}
-              onChange={(e) => handleNameChange(e.target.value)}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. Orion War — Core"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
             />
@@ -227,8 +224,7 @@ function WorkspaceModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              Context Snippets
-              <span className="text-gray-500 font-normal ml-1">(5–20)</span>
+              Context Snippets <span className="text-gray-500 font-normal">(5–20)</span>
             </label>
             <div className="flex items-center gap-3">
               <input
@@ -246,7 +242,7 @@ function WorkspaceModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              System Prompt Override <span className="text-gray-500">(optional — overrides universe default)</span>
+              System Prompt Override <span className="text-gray-500">(optional)</span>
             </label>
             <textarea
               value={form.prompt}
@@ -281,6 +277,7 @@ function WorkspaceModal({
 
 function UniverseCard({ universe }: { universe: Universe }) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
   const [editUniverse, setEditUniverse] = useState(false)
   const [addWorkspace, setAddWorkspace] = useState(false)
@@ -357,7 +354,12 @@ function UniverseCard({ universe }: { universe: Universe }) {
                   className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-800 group"
                 >
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm text-white">{ws.name}</span>
+                    <button
+                      onClick={() => navigate(`/dashboard/universes/${universe.id}/workspaces/${ws.id}/books`)}
+                      className="text-sm text-white hover:text-blue-400 transition-colors"
+                    >
+                      {ws.name}
+                    </button>
                     <span className="text-xs text-gray-500 font-mono ml-2">{ws.slug}</span>
                     <span className="text-xs text-gray-600 ml-2">{ws.context_snippets} snippets</span>
                     {ws.prompt && (

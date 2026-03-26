@@ -241,3 +241,23 @@ async def delete_workspace(
     workspace.active = False
     await db.commit()
     return {"status": "deactivated", "id": workspace_id}
+
+
+# ── Single workspace GET (needed for Books page) ──────────────────────────────
+
+@router.get("/{universe_id}/workspaces/{workspace_id}", response_model=WorkspaceResponse)
+async def get_workspace(
+    universe_id: str,
+    workspace_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_author),
+):
+    universe = await db.get(Universe, universe_id)
+    if not universe or universe.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Universe not found")
+
+    workspace = await db.get(Workspace, workspace_id)
+    if not workspace or workspace.tenant_id != current_user.tenant_id or not workspace.active:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    return workspace
