@@ -65,6 +65,9 @@ class BookResponse(BaseModel):
     error_message: Optional[str]
     chunkinator_job_id: Optional[str]
     dry_run_result: Optional[str]
+    skip_headings_extra: Optional[str]
+    recap_headings_extra: Optional[str]
+    appendix_headings_extra: Optional[str]
     created_at: datetime
     updated_at: Optional[datetime]
 

@@ -2,6 +2,8 @@
 Loremaster — FastAPI Application
 """
 
+import logging
+import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +13,14 @@ from app.config import settings
 from app.services.auth import ensure_superadmin
 from app.routers import auth, tenants, users, universes, books
 
+# Configure logging — send everything to stdout so docker compose logs captures it
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
+
 
 def run_migrations():
     """Run alembic migrations on startup."""
@@ -18,23 +28,25 @@ def run_migrations():
     from alembic import command
     import os
 
+    logger.info("Running database migrations...")
     alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "alembic.ini"))
     alembic_cfg.set_main_option(
         "sqlalchemy.url",
         settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
     )
     command.upgrade(alembic_cfg, "head")
-    print("Database migrations complete.")
+    logger.info("Database migrations complete.")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Loremaster API starting up...")
+    logger.info("Loremaster API starting up...")
     run_migrations()
     async with AsyncSessionLocal() as db:
         await ensure_superadmin(db)
+    logger.info("Loremaster API ready.")
     yield
-    print("Loremaster API shutting down...")
+    logger.info("Loremaster API shutting down...")
 
 
 app = FastAPI(

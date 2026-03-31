@@ -163,6 +163,29 @@ async def update_book(
     return book
 
 
+# ── Delete ───────────────────────────────────────────────────────────────────
+
+@router.delete("/{book_id}", status_code=204)
+async def delete_book(
+    universe_id: str,
+    workspace_id: str,
+    book_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_author),
+):
+    await get_workspace_for_user(universe_id, workspace_id, current_user, db)
+
+    book = await db.get(Book, book_id)
+    if not book or book.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Clean up Chunkinator data — non-fatal if Chonky is unreachable
+    await chunkinator.delete_book(current_user.tenant_id, book_id)
+
+    await db.delete(book)
+    await db.commit()
+
+
 # ── Upload .docx ──────────────────────────────────────────────────────────────
 
 @router.post("/{book_id}/upload", response_model=BookResponse)
@@ -188,13 +211,17 @@ async def upload_book_file(
     manifest["filename"] = file.filename
 
     # Upload to Chunkinator Service
-    result = await chunkinator.upload(file_bytes, file.filename, manifest)
+    result = await chunkinator.upload(
+        file_bytes=file_bytes,
+        filename=file.filename,
+        tenant_id=current_user.tenant_id,
+        book_id=book.id,
+    )
     if not result:
-        raise HTTPException(status_code=502, detail="Failed to upload to Chunkinator Service")
+        raise HTTPException(status_code=502, detail="Could not reach Chunkinator Service — check that it is running on Chonky and CHUNKINATOR_BASE_URL is correct")
 
     book.filename = file.filename
     book.file_stored_at = datetime.now(timezone.utc)
-    book.chunkinator_job_id = result.get("job_id")
     book.status = BookStatus.STORED
     await db.commit()
     await db.refresh(book)
@@ -211,21 +238,29 @@ async def dry_run_book(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_author),
 ):
-    await get_workspace_for_user(universe_id, workspace_id, current_user, db)
+    workspace = await get_workspace_for_user(universe_id, workspace_id, current_user, db)
 
     book = await db.get(Book, book_id)
     if not book or book.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Book not found")
 
-    if not book.chunkinator_job_id:
+    if not book.filename:
         raise HTTPException(status_code=400, detail="No file uploaded yet")
 
-    result = await chunkinator.dry_run(book.chunkinator_job_id)
+    manifest = build_manifest(book, workspace)
+    manifest["filename"] = book.filename
+
+    result = await chunkinator.dry_run(
+        tenant_id=current_user.tenant_id,
+        book_id=book.id,
+        manifest=manifest,
+    )
     if not result:
-        raise HTTPException(status_code=502, detail="Dry run failed — check Chunkinator Service")
+        raise HTTPException(status_code=502, detail="Could not reach Chunkinator Service — check that it is running on Chonky")
 
     book.status = BookStatus.DRY_RUN
-    book.dry_run_result = json.dumps(result)
+    book.chunkinator_job_id = result.get("job_id")
+    book.dry_run_result = None  # clear any previous result while new job runs
     await db.commit()
     await db.refresh(book)
     return book
@@ -241,7 +276,7 @@ async def approve_and_chunk(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_author),
 ):
-    await get_workspace_for_user(universe_id, workspace_id, current_user, db)
+    workspace = await get_workspace_for_user(universe_id, workspace_id, current_user, db)
 
     book = await db.get(Book, book_id)
     if not book or book.tenant_id != current_user.tenant_id:
@@ -250,11 +285,20 @@ async def approve_and_chunk(
     if book.status not in (BookStatus.DRY_RUN, BookStatus.VALIDATING):
         raise HTTPException(status_code=400, detail="Book must be in dry_run status before approving")
 
-    result = await chunkinator.chunk(book.chunkinator_job_id)
+    manifest = build_manifest(book, workspace)
+    manifest["filename"] = book.filename
+
+    result = await chunkinator.chunk(
+        tenant_id=current_user.tenant_id,
+        book_id=book.id,
+        manifest=manifest,
+        workspace_slug=workspace.slug,
+    )
     if not result:
         raise HTTPException(status_code=502, detail="Chunking failed — check Chunkinator Service")
 
     book.status = BookStatus.CHUNKING
+    book.chunkinator_job_id = result.get("job_id")
     await db.commit()
     await db.refresh(book)
     return book
@@ -284,10 +328,17 @@ async def poll_job_status(
         return book
 
     job_status = job.get("status")
+    job_type   = job.get("type")
 
-    if job_status == "complete":
-        book.status = BookStatus.CHUNKED
-        book.chunk_count = job.get("chunk_count")
+    if job_status == "done":
+        if job_type == "dry_run":
+            # Dry run complete — store result and advance to validating for author review
+            book.status = BookStatus.VALIDATING
+            book.dry_run_result = json.dumps(job.get("result", {}))
+        elif job_type == "chunk":
+            book.status = BookStatus.CHUNKED
+            result = job.get("result", {})
+            book.chunk_count = result.get("chunk_count")
     elif job_status == "error":
         book.status = BookStatus.ERROR
         book.error_message = job.get("error")

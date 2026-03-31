@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, ArrowLeft, Upload, Play, CheckCircle, AlertCircle, Clock, BookOpen, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, ArrowLeft, Upload, Play, CheckCircle, AlertCircle, Clock, BookOpen, ChevronDown, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import api from '../../lib/api'
+import DryRunViewer from '../../components/DryRunViewer'
 
 interface Book {
   id: string
@@ -23,6 +24,9 @@ interface Book {
   error_message: string | null
   chunkinator_job_id: string | null
   dry_run_result: string | null
+  skip_headings_extra: string | null
+  recap_headings_extra: string | null
+  appendix_headings_extra: string | null
   created_at: string
 }
 
@@ -52,7 +56,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   pending:    { label: 'Pending',    color: 'text-gray-400',   icon: Clock },
   stored:     { label: 'Uploaded',   color: 'text-blue-400',   icon: Upload },
   dry_run:    { label: 'Dry Run',    color: 'text-yellow-400', icon: Play },
-  validating: { label: 'Validating', color: 'text-yellow-400', icon: Clock },
+  validating: { label: 'Review',     color: 'text-yellow-400', icon: CheckCircle },
   approved:   { label: 'Approved',   color: 'text-blue-400',   icon: CheckCircle },
   chunking:   { label: 'Chunking',   color: 'text-blue-400',   icon: Clock },
   chunked:    { label: 'Chunked',    color: 'text-green-400',  icon: CheckCircle },
@@ -233,6 +237,167 @@ function BookModal({
   )
 }
 
+// ── Edit Book Modal ───────────────────────────────────────────────────────────
+
+function EditBookModal({
+  book,
+  universeId,
+  workspaceId,
+  onClose,
+}: {
+  book: Book
+  universeId: string
+  workspaceId: string
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [form, setForm] = useState({
+    title: book.title,
+    series: book.series,
+    era: book.era,
+    series_order: book.series_order ?? '',
+    format: book.format ?? 'novel',
+    uses_parts: book.uses_parts,
+    pov_markers: book.pov_markers,
+    has_drop_caps: book.has_drop_caps,
+    is_extended_content: book.is_extended_content,
+    date_identifier: book.date_identifier ?? '',
+  })
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [error, setError] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: (data: typeof form) =>
+      api.patch(`/universes/${universeId}/workspaces/${workspaceId}/books/${book.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['books', workspaceId] })
+      onClose()
+    },
+    onError: (err: any) => setError(formatError(err)),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-semibold text-white mb-4">Edit Book</h2>
+        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(form) }} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-300 mb-1">Title</label>
+              <input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Series</label>
+              <input
+                value={form.series}
+                onChange={(e) => setForm({ ...form, series: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Order in Series</label>
+              <input
+                value={form.series_order}
+                onChange={(e) => setForm({ ...form, series_order: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Era</label>
+              <select
+                value={form.era}
+                onChange={(e) => setForm({ ...form, era: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              >
+                {ERA_OPTIONS.map((era) => (
+                  <option key={era} value={era}>{era}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Format</label>
+              <select
+                value={form.format}
+                onChange={(e) => setForm({ ...form, format: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              >
+                <option value="novel">Novel</option>
+                <option value="novella">Novella</option>
+                <option value="short_story">Short Story</option>
+                <option value="collection">Collection</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1 text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              {showAdvanced ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              Advanced options
+            </button>
+            {showAdvanced && (
+              <div className="mt-3 space-y-3 pl-4 border-l border-gray-700">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Date Identifier <span className="text-gray-500">(e.g. COMMON ERA)</span>
+                  </label>
+                  <input
+                    value={form.date_identifier}
+                    onChange={(e) => setForm({ ...form, date_identifier: e.target.value })}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ['uses_parts', 'Uses Parts (H1/H2 structure)'],
+                    ['pov_markers', 'POV markers'],
+                    ['has_drop_caps', 'Has drop caps'],
+                    ['is_extended_content', 'Extended content'],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={form[key]}
+                        onChange={(e) => setForm({ ...form, [key]: e.target.checked })}
+                        className="accent-blue-500"
+                      />
+                      <span className="text-sm text-gray-300">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+
+          <div className="flex gap-2 justify-end pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+            >
+              {mutation.isPending ? 'Saving...' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Status Badge ──────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
@@ -259,21 +424,52 @@ function BookRow({
 }) {
   const queryClient = useQueryClient()
   const [uploading, setUploading] = useState(false)
+  const [rowError, setRowError] = useState<string | null>(null)
+  const [showEdit, setShowEdit] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/universes/${universeId}/workspaces/${workspaceId}/books/${book.id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['books', workspaceId] }),
+    onError: (err: any) => setRowError(formatError(err)),
+  })
 
   const dryRunMutation = useMutation({
     mutationFn: () => api.post(`/universes/${universeId}/workspaces/${workspaceId}/books/${book.id}/dry-run`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['books', workspaceId] }),
+    onSuccess: () => {
+      setRowError(null)
+      queryClient.invalidateQueries({ queryKey: ['books', workspaceId] })
+    },
+    onError: (err: any) => setRowError(formatError(err)),
   })
 
   const approveMutation = useMutation({
     mutationFn: () => api.post(`/universes/${universeId}/workspaces/${workspaceId}/books/${book.id}/approve`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['books', workspaceId] }),
+    onSuccess: () => {
+      setRowError(null)
+      queryClient.invalidateQueries({ queryKey: ['books', workspaceId] })
+    },
+    onError: (err: any) => setRowError(formatError(err)),
+  })
+
+  // Auto-poll while a job is in progress
+  useQuery({
+    queryKey: ['job-status', book.id],
+    queryFn: () =>
+      api.get(`/universes/${universeId}/workspaces/${workspaceId}/books/${book.id}/job-status`)
+        .then((r) => {
+          queryClient.invalidateQueries({ queryKey: ['books', workspaceId] })
+          return r.data
+        }),
+    enabled: book.status === 'dry_run' || book.status === 'chunking',
+    refetchInterval: 3000,
   })
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
+    setRowError(null)
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -283,62 +479,146 @@ function BookRow({
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )
       queryClient.invalidateQueries({ queryKey: ['books', workspaceId] })
-    } catch (err) {
-      console.error('Upload failed', err)
+    } catch (err: any) {
+      setRowError(formatError(err))
     } finally {
       setUploading(false)
+      // Reset file input so same file can be re-uploaded after an error
+      e.target.value = ''
     }
   }
 
   return (
-    <tr className="hover:bg-gray-800/50 transition-colors">
-      <td className="px-4 py-3">
-        <div>
-          <p className="text-sm text-white font-medium">{book.title}</p>
-          <p className="text-xs text-gray-400">{book.series}{book.series_order ? ` #${book.series_order}` : ''}</p>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-xs text-gray-400">{book.era}</td>
-      <td className="px-4 py-3">
-        <StatusBadge status={book.status} />
-      </td>
-      <td className="px-4 py-3 text-xs text-gray-400">
-        {book.filename ?? <span className="text-gray-600">no file</span>}
-      </td>
-      <td className="px-4 py-3 text-xs text-gray-400">
-        {book.chunk_count != null ? `${book.chunk_count} chunks` : '—'}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-1 justify-end">
-          {(book.status === 'pending' || book.status === 'stored') && (
-            <label className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded cursor-pointer transition-colors" title="Upload .docx">
-              <Upload size={13} />
-              <input type="file" accept=".docx" className="hidden" onChange={handleUpload} disabled={uploading} />
-            </label>
-          )}
-          {book.status === 'stored' && (
+    <>
+      <tr className="hover:bg-gray-800/50 transition-colors">
+        <td className="px-4 py-3">
+          <div>
+            <p className="text-sm text-white font-medium">{book.title}</p>
+            <p className="text-xs text-gray-400">{book.series}{book.series_order ? ` #${book.series_order}` : ''}</p>
+          </div>
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-400">{book.era}</td>
+        <td className="px-4 py-3">
+          <StatusBadge status={book.status} />
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-400">
+          {book.filename ?? <span className="text-gray-600">no file</span>}
+        </td>
+        <td className="px-4 py-3 text-xs text-gray-400">
+          {book.chunk_count != null ? `${book.chunk_count} chunks` : '—'}
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1 justify-end">
+            {/* Edit — always available */}
             <button
-              onClick={() => dryRunMutation.mutate()}
-              disabled={dryRunMutation.isPending}
-              className="p-1.5 text-gray-400 hover:text-yellow-400 hover:bg-gray-700 rounded transition-colors"
-              title="Dry run"
+              onClick={() => setShowEdit(true)}
+              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+              title="Edit book"
             >
-              <Play size={13} />
+              <Pencil size={13} />
             </button>
-          )}
-          {book.status === 'dry_run' && (
-            <button
-              onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending}
-              className="p-1.5 text-gray-400 hover:text-green-400 hover:bg-gray-700 rounded transition-colors"
-              title="Approve and chunk"
-            >
-              <CheckCircle size={13} />
-            </button>
-          )}
-        </div>
-      </td>
-    </tr>
+
+            {/* Upload — pending, stored, validating, or error */}
+            {(['pending', 'stored', 'validating', 'error'] as string[]).includes(book.status) && (
+              <label
+                className={`p-1.5 rounded cursor-pointer transition-colors ${uploading ? 'text-gray-600' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                title={book.status === 'validating' ? 'Re-upload .docx' : 'Upload .docx'}
+              >
+                {uploading ? <Clock size={13} /> : <Upload size={13} />}
+                <input type="file" accept=".docx" className="hidden" onChange={handleUpload} disabled={uploading} />
+              </label>
+            )}
+
+            {/* Dry run — stored or validating (re-run after metadata edit) */}
+            {(book.status === 'stored' || book.status === 'validating') && (
+              <button
+                onClick={() => dryRunMutation.mutate()}
+                disabled={dryRunMutation.isPending}
+                className="p-1.5 text-gray-400 hover:text-yellow-400 hover:bg-gray-700 rounded transition-colors"
+                title={book.status === 'validating' ? 'Re-run dry run' : 'Dry run'}
+              >
+                <Play size={13} />
+              </button>
+            )}
+
+            {/* Polling indicator — dry_run or chunking in progress */}
+            {(book.status === 'dry_run' || book.status === 'chunking') && (
+              <span className="p-1.5 text-blue-400 animate-pulse" title="Processing...">
+                <Clock size={13} />
+              </span>
+            )}
+
+            {/* Approve — handled inside DryRunViewer when validating */}
+
+            {/* Delete — always available */}
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded transition-colors"
+                title="Delete book"
+              >
+                <Trash2 size={13} />
+              </button>
+            ) : (
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-red-400">Delete?</span>
+                <button
+                  onClick={() => deleteMutation.mutate()}
+                  disabled={deleteMutation.isPending}
+                  className="px-2 py-0.5 text-xs bg-red-600 hover:bg-red-500 text-white rounded transition-colors"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-2 py-0.5 text-xs text-gray-400 hover:text-white transition-colors"
+                >
+                  No
+                </button>
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+
+      {rowError && (
+        <tr className="bg-red-950/30">
+          <td colSpan={6} className="px-4 py-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-red-400 flex items-center gap-1.5">
+                <AlertCircle size={12} />
+                {rowError}
+              </span>
+              <button onClick={() => setRowError(null)} className="text-xs text-red-400/60 hover:text-red-400 transition-colors">
+                dismiss
+              </button>
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {/* Dry run result — shown when validating */}
+      {book.status === 'validating' && book.dry_run_result && (
+        <tr>
+          <td colSpan={6} className="p-0">
+            <DryRunViewer
+              book={book}
+              universeId={universeId}
+              workspaceId={workspaceId}
+            />
+          </td>
+        </tr>
+      )}
+
+      {showEdit && (
+        <EditBookModal
+          book={book}
+          universeId={universeId}
+          workspaceId={workspaceId}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
+    </>
   )
 }
 
